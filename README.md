@@ -12,7 +12,10 @@ repositories {
     maven("https://jitpack.io")
 }
 dependencies {
-    implementation("com.github.znci:twine:{LATEST_COMMIT}")
+    /* example:
+    implementation("com.github.znci:twine:3a5f69f7b1")
+    */
+    implementation("com.github.znci:twine:{LATEST_COMMIT}") // (first 10 characters of commit hash)
 }
 ```
 
