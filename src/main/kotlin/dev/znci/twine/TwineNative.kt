@@ -25,6 +25,7 @@ import org.luaj.vm2.lib.TwoArgFunction
 import org.luaj.vm2.lib.VarArgFunction
 import java.lang.reflect.InvocationTargetException
 import java.util.ArrayList
+import kotlin.jvm.java
 import kotlin.reflect.*
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
@@ -136,7 +137,7 @@ abstract class TwineNative(
                     ?: return error("No property '${key.tojstring()}'")
 
                 return try {
-                    prop.setter.call(this@TwineNative, value.toKotlinValue(prop.returnType.classifier))
+                    prop.setter.call(this@TwineNative, value.toKotlinValue(prop.returnType))
                     TRUE
                 } catch (e: Exception) {
                     error("Error setting '${prop.name}': ${e.message}")
@@ -160,7 +161,7 @@ abstract class TwineNative(
                 if (arg.istable()) {
                     arg.checktable().toClass(func)
                 } else {
-                    arg.toKotlinValue(param.type.classifier)
+                    arg.toKotlinValue(param.type)
                 }
             }
         }.toTypedArray()
@@ -172,14 +173,35 @@ abstract class TwineNative(
      * @param type The expected Kotlin type.
      * @return The converted value in Kotlin.
      */
-    private fun LuaValue.toKotlinValue(type: KClassifier?): Any? {
-        return when (type) {
-            String::class -> if (isnil()) null else tojstring()
-            Boolean::class -> toboolean()
-            Int::class -> toint()
-            Double::class -> todouble()
-            Float::class -> tofloat()
-            Long::class -> tolong()
+    private fun LuaValue.toKotlinValue(type: KType?): Any? {
+        return when {
+            isfunction() -> {
+                val func = checkfunction()
+
+                // TODO: make this nicer
+                return when (type?.classifier) {
+                    Function0::class -> {
+                        func.call()
+                    }
+                    Function1::class -> { arg1: Any? ->
+                        func.call(arg1.toLuaValue())
+                    }
+                    Function2::class -> { arg1: Any?, arg2: Any? ->
+                        func.call(arg1.toLuaValue(), arg2.toLuaValue())
+                    }
+                    Function3::class -> { arg1: Any?, arg2: Any?, arg3: Any? ->
+                        func.call(arg1.toLuaValue(), arg2.toLuaValue(), arg3.toLuaValue())
+                    }
+
+                    else -> func
+                }
+            }
+            type?.classifier == String::class -> if (isnil()) null else tojstring()
+            type?.classifier == Boolean::class -> toboolean()
+            type?.classifier == Int::class -> toint()
+            type?.classifier == Double::class -> todouble()
+            type?.classifier == Float::class -> tofloat()
+            type?.classifier == Long::class -> tolong()
             else -> this
         }
     }
@@ -204,6 +226,13 @@ abstract class TwineNative(
             }
             is TwineLuaValue -> {
                 throw TwineError("TwineLuaValue should not be used as a return type.")
+            }
+            is Array<*> -> {
+                val table = LuaTable()
+                this.forEachIndexed { index, value ->
+                    table.set(index + 1, value.toLuaValue())
+                }
+                table
             }
             is ArrayList<*> -> {
                 val table = LuaTable()
@@ -232,6 +261,7 @@ abstract class TwineNative(
     private fun LuaTable.toClass(func: KFunction<*>): Any { // XXX: stupid trick to also return enums.
         try {
             var className = get("__javaClass").tojstring()
+
             if (className == "nil") {
                 var classes = func.parameters.map { it.type.classifier }
                 classes = classes.drop(1)
@@ -248,7 +278,12 @@ abstract class TwineNative(
                 }
 
             }
-            val clazz = Class.forName(className).kotlin
+
+            val clazz = try {
+                Class.forName(className).kotlin
+            } catch (e: ClassNotFoundException) {
+                throw TwineError("Could not find class '$className'. Did you forget to set __javaClass?")
+            }
 
             // if enum class
             if (clazz.java.isEnum) {
@@ -260,7 +295,7 @@ abstract class TwineNative(
                         ?: throw IllegalArgumentException("No primary constructor found for $className")
                 val args = constructor.parameters.map { param ->
                     val value = get(param.name)
-                    value.toKotlinValue(param.type.classifier)
+                    value.toKotlinValue(param.type)
                 }.toTypedArray()
                 return constructor.call(*args) as TwineTable
             }
