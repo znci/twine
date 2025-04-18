@@ -249,8 +249,11 @@ abstract class TwineNative(
             is Unit -> {
                 throw TwineError("Unit return type is not allowed. At least return a Boolean.")
             }
+            null -> {
+                NIL
+            }
             else -> {
-                throw TwineError("Unsupported type: ${this?.javaClass?.simpleName ?: "null"}")
+                throw TwineError("Unsupported type: ${this.javaClass.simpleName ?: "null"}")
             }
         }
     }
