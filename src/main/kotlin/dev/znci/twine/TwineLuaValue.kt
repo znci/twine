@@ -93,7 +93,7 @@ open class TwineLuaValue(val luaValue: LuaValue = LuaValue.TRUE) : LuaValue() {
                     table
                 }
                 else -> {
-                    throw TwineError("Unsupported type: ${value?.javaClass?.simpleName ?: "null"}")
+                    throw TwineError("Unsupported Lua type: ${value?.javaClass?.simpleName ?: "null"}")
                     NIL
                 }
             }
