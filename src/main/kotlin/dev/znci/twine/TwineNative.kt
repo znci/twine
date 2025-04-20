@@ -247,7 +247,7 @@ abstract class TwineNative(
                 enumTable.toLuaTable(this)
             }
             is Unit -> {
-                throw TwineError("Unit return type is not allowed. At least return a Boolean.")
+                NIL
             }
             null -> {
                 NIL
