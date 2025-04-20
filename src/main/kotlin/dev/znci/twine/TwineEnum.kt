@@ -23,10 +23,11 @@ class TwineEnum(private val enum: Enum<*>) : TwineTable(enum.javaClass.simpleNam
             }
         })
     }
+
     fun toLuaTable(): LuaTable {
         val table = this.table
         for (enumConstant in enum.javaClass.enumConstants) {
-            table.set(enumConstant.name, TwineLuaValue(LuaValue.valueOf(enumConstant.ordinal)))
+            table.set(enumConstant.name, LuaValue.valueOf(enumConstant.ordinal))
         }
         return table
     }
