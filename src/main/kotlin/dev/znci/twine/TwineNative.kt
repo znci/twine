@@ -17,6 +17,8 @@ package dev.znci.twine
 
 import dev.znci.twine.annotations.TwineNativeFunction
 import dev.znci.twine.annotations.TwineNativeProperty
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
@@ -219,6 +221,7 @@ abstract class TwineNative(
             is Double -> LuaValue.valueOf(this)
             is Float -> LuaValue.valueOf(this.toDouble())
             is Long -> LuaValue.valueOf(this.toDouble())
+            is Component -> LuaValue.valueOf(MiniMessage.miniMessage().serialize(this))
             is TwineTable -> {
                 val table = this.table
                 set("__javaClass", TableSetOptions(getter = { LuaValue.valueOf(javaClass.name) }))

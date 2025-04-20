@@ -20,6 +20,8 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.luaj.vm2.LuaBoolean
 import org.luaj.vm2.LuaInteger
 import org.luaj.vm2.LuaNil
@@ -75,6 +77,8 @@ open class TwineLuaValue(val luaValue: LuaValue = LuaValue.TRUE) : LuaValue() {
          * @return A corresponding `TwineValue` representing the input value.
          */
         fun valueOf(value: Any?): TwineLuaValue {
+            println("Using local Twine.")
+
             return when (value) {
                 is String -> TwineLuaValue(LuaValue.valueOf(value))
                 is Boolean -> TwineLuaValue(LuaValue.valueOf(value))
@@ -82,6 +86,7 @@ open class TwineLuaValue(val luaValue: LuaValue = LuaValue.TRUE) : LuaValue() {
                 is Double -> TwineLuaValue(LuaValue.valueOf(value))
                 is TwineTable -> TwineLuaValue(value.table)
                 is LuaValue -> TwineLuaValue(value)
+                is Component -> TwineLuaValue(LuaValue.valueOf(MiniMessage.miniMessage().serialize(value)))
                 is ArrayList<*> -> {
                     val table = TwineTable("")
 
