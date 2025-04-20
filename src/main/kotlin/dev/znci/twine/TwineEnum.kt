@@ -27,6 +27,7 @@ class TwineEnum(private val enum: Enum<*>) : TwineTable(enum.javaClass.simpleNam
     fun toLuaTable(): LuaTable {
         val table = this.table
         for (enumConstant in enum.javaClass.enumConstants) {
+            // FIXME: figure out why we can't use TwineLuaValue.
             table.set(enumConstant.name, LuaValue.valueOf(enumConstant.ordinal))
         }
         return table
