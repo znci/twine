@@ -243,8 +243,8 @@ abstract class TwineNative(
             }
             is Enum<*> -> {
                 val enumClass = this::class
-                val enumTable = TwineEnum(enumClass.simpleName!!)
-                enumTable.toLuaTable(this)
+                val enumTable = TwineEnum(enumClass as Enum<*>)
+                enumTable.toLuaTable()
             }
             is Unit -> {
                 NIL
@@ -290,8 +290,9 @@ abstract class TwineNative(
 
             // if enum class
             if (clazz.java.isEnum) {
-                val renum = TwineEnum(clazz.simpleName!!)
-                return renum.fromLuaTable(this, clazz)
+                // get Enum<*> class
+                val renum = TwineEnum(clazz as Enum<*>)
+                return renum.fromLuaTable(this)
             } else {
                 val constructor =
                     clazz.primaryConstructor
