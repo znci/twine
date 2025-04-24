@@ -123,7 +123,7 @@ abstract class TwineNative(
                             }
                             for (i in 0 until argCount) {
                                 val paramType = params[i].type
-                                val argType = getKotlinType(args.arg(i + 1))
+                                val argType = getKotlinType(args.arg(i + 1), function)
 
                                 if (!paramType.isSupertypeOf(argType)) {
                                     return@find false
@@ -222,15 +222,22 @@ abstract class TwineNative(
     /**
      * Converts a Lua value to the corresponding Kotlin type.
      */
-    private fun getKotlinType(luaValue: LuaValue): KType {
+    private fun getKotlinType(luaValue: LuaValue, func: KFunction<*>): KType {
         return when {
             luaValue.isboolean() -> Boolean::class.createType()
             luaValue.isint() -> Int::class.createType()
             luaValue.isnumber() -> Double::class.createType()
             luaValue.isstring() -> String::class.createType()
             luaValue.isfunction() -> Function::class.createType()
-            luaValue.istable() -> Any::class.createType()
-            else -> Any::class.createType()
+            luaValue.istable() -> {
+                try {
+                    val instance = luaValue.checktable().toClass(func)
+                    instance::class.createType()
+                } catch (e: Exception) {
+                    LuaTable::class.createType()
+                }
+            }
+            else -> luaValue::class.createType()
         }
     }
 
