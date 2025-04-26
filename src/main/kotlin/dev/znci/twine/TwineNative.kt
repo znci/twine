@@ -27,8 +27,10 @@ import java.lang.reflect.InvocationTargetException
 import java.util.ArrayList
 import kotlin.jvm.java
 import kotlin.reflect.*
+import kotlin.reflect.full.createType
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
+import kotlin.reflect.full.isSupertypeOf
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 
@@ -78,27 +80,77 @@ abstract class TwineNative(
                         val result = function.call(this@TwineNative, *kotlinArgs)
                         result.toLuaValue()
                     } catch (e: InvocationTargetException) {
-                        val cause = e.cause
-                        val errorPrefix = "Error calling ${function.name}:"
-                        if (cause is TwineError) {
-                            cause.printStackTrace()
-                            error("$errorPrefix ${cause.message}")
-                        } else {
-                            var errorMessage = e.message
-
-                            if (errorMessage == null) {
-                                errorMessage = "Unexpected error"
-                            }
-
-                            e.printStackTrace()
-                            error("$errorPrefix $errorMessage")
-                        }
-                    }
+                        throwError(e, function)
+                    } as Varargs
                 }
             })
         }
+        handleOverloadedFunctions(this::class.functions)
     }
 
+    /**
+     * Handles overloaded functions.
+     *
+     * @param functions The list of functions to handle.
+     */
+    private fun handleOverloadedFunctions(functions: Collection<KFunction<*>>) {
+        val functionMap = mutableMapOf<String, MutableList<KFunction<*>>>()
+
+        functions.forEach { function ->
+            if (function.findAnnotation<TwineNativeFunction>() == null) {
+                return@forEach
+            }
+            val annotation = function.findAnnotation<TwineNativeFunction>()
+            var annotatedFunctionName = annotation?.name ?: function.name
+
+            if (annotatedFunctionName == "INHERIT_FROM_DEFINITION" ) {
+                annotatedFunctionName = function.name
+            }
+
+            functionMap.computeIfAbsent(annotatedFunctionName) { mutableListOf() }.add(function)
+        }
+
+        // Find a match depending on the arg count and the arg types
+        functionMap.forEach { (name, overloadedFunctions) ->
+            if (overloadedFunctions.size > 1) {
+                val overloadedFunction = object : VarArgFunction() {
+                    override fun invoke(args: Varargs): Varargs {
+                        val argCount = args.narg()
+                        val matchingFunction = overloadedFunctions.find { function ->
+                            val params = function.parameters.drop(1) // Skip `this`
+                            if (params.size != argCount) {
+                                return@find false
+                            }
+                            for (i in 0 until argCount) {
+                                val paramType = params[i].type
+                                val argType = getKotlinType(args.arg(i + 1), function)
+
+                                if (!paramType.isSupertypeOf(argType)) {
+                                    return@find false
+                                }
+                            }
+                            true
+                        }
+
+                        if (matchingFunction != null) {
+                            val kotlinArgs = args.toKotlinArgs(matchingFunction)
+                            return try {
+                                val result = matchingFunction.call(this@TwineNative, *kotlinArgs)
+                                result.toLuaValue()
+                            } catch (e: InvocationTargetException) {
+                                throwError(e, matchingFunction)
+                            } as Varargs
+                        } else {
+                            throw TwineError("No matching function found for $name with $argCount arguments")
+                        }
+
+                        return NIL
+                    }
+                }
+                table.set(name, overloadedFunction)
+            }
+        }
+    }
     /**
      * Registers properties annotated with {@code TwineNativeProperty} into the Lua table.
      *
@@ -165,6 +217,28 @@ abstract class TwineNative(
                 }
             }
         }.toTypedArray()
+    }
+
+    /**
+     * Converts a Lua value to the corresponding Kotlin type.
+     */
+    private fun getKotlinType(luaValue: LuaValue, func: KFunction<*>): KType {
+        return when {
+            luaValue.isboolean() -> Boolean::class.createType()
+            luaValue.isint() -> Int::class.createType()
+            luaValue.isnumber() -> Double::class.createType()
+            luaValue.isstring() -> String::class.createType()
+            luaValue.isfunction() -> Function::class.createType()
+            luaValue.istable() -> {
+                try {
+                    val instance = luaValue.checktable().toClass(func)
+                    instance::class.createType()
+                } catch (e: Exception) {
+                    LuaTable::class.createType()
+                }
+            }
+            else -> luaValue::class.createType()
+        }
     }
 
     /**
@@ -305,6 +379,30 @@ abstract class TwineNative(
             }
         } catch (e: Exception) {
             throw e
+        }
+    }
+
+    /**
+     * Throws a TwineError with the given cause.
+     *
+     * @param error The error to throw.
+     * @param function The function that caused the error, if available.
+     */
+    private fun throwError(error: Throwable, function: KFunction<*>? = null) {
+        val cause = error.cause
+        val errorPrefix = "Error calling ${function?.name}:"
+        if (cause is TwineError) {
+            cause.printStackTrace()
+            error("$errorPrefix ${cause.message}")
+        } else {
+            var errorMessage = error.message
+
+            if (errorMessage == null) {
+                errorMessage = "Unexpected error"
+            }
+
+            error.printStackTrace()
+            error("$errorPrefix $errorMessage")
         }
     }
 }
