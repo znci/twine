@@ -225,8 +225,8 @@ abstract class TwineNative(
     private fun getKotlinType(luaValue: LuaValue, func: KFunction<*>): KType {
         return when {
             luaValue.isboolean() -> Boolean::class.createType()
-            luaValue.isint() -> Int::class.createType()
             luaValue.isnumber() -> Double::class.createType()
+            luaValue.isint() -> Int::class.createType()
             luaValue.isstring() -> String::class.createType()
             luaValue.isfunction() -> Function::class.createType()
             luaValue.istable() -> {
@@ -289,8 +289,8 @@ abstract class TwineNative(
         return when (this) {
             is String -> LuaValue.valueOf(this)
             is Boolean -> LuaValue.valueOf(this)
+            is Double -> LuaValue.valueOf(this.toDouble())
             is Int -> LuaValue.valueOf(this)
-            is Double -> LuaValue.valueOf(this)
             is Float -> LuaValue.valueOf(this.toDouble())
             is Long -> LuaValue.valueOf(this.toDouble())
             is TwineTable -> {
