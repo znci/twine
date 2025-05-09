@@ -118,9 +118,12 @@ abstract class TwineNative(
                         val argCount = args.narg()
                         val matchingFunction = overloadedFunctions.find { function ->
                             val params = function.parameters.drop(1) // Skip `this`
-                            if (params.size != argCount) {
-                                return@find false
-                            }
+                             val isVararg = params.lastOrNull()?.isVararg == true
+                            val fixedParamCount = if (isVararg) params.size - 1 else params.size
+
+                            if (argCount < fixedParamCount) return@find false
+                            if (!isVararg && argCount != fixedParamCount) return@find false
+
                             for (i in 0 until argCount) {
                                 val paramType = params[i].type
                                 val argType = getKotlinType(args.arg(i + 1), function)
@@ -134,6 +137,7 @@ abstract class TwineNative(
 
                         if (matchingFunction != null) {
                             val kotlinArgs = args.toKotlinArgs(matchingFunction)
+                            println("KOTLIN ARGS: $kotlinArgs")
                             return try {
                                 val result = matchingFunction.call(this@TwineNative, *kotlinArgs)
                                 result.toLuaValue()
@@ -141,7 +145,29 @@ abstract class TwineNative(
                                 throwError(e, matchingFunction)
                             } as Varargs
                         } else {
-                            throw TwineError("No matching function found for $name with $argCount arguments")
+                            if (overloadedFunctions.isNotEmpty()) {
+                                val firstParam = overloadedFunctions.first().parameters.getOrNull(1)
+
+                                if (firstParam?.isVararg == true) {
+                                    val varargFunction = overloadedFunctions.find {
+                                        val ps = it.parameters.drop(1)
+                                        ps.size == 1 && ps[0].isVararg
+                                    } ?: throw TwineError("No vararg function found")
+
+                                    val varargParam = varargFunction.parameters[1]
+                                    val varargArgs = args.toKotlinVarargArgs(varargParam)
+
+                                    return try {
+                                        val result = varargFunction.call(this@TwineNative, *varargArgs)
+                                        result.toLuaValue()
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        throwError(e, varargFunction)
+                                    } as Varargs
+                                }
+                            } else {
+                                throw TwineError("No matching function found for $name with $argCount arguments")
+                            }
                         }
 
                         return NIL
@@ -151,6 +177,64 @@ abstract class TwineNative(
             }
         }
     }
+
+    /**
+     * Converts Lua varargs to Kotlin vararg arguments based on the parameter type.
+     *
+     * @param param The parameter whose type will be used for conversion.
+     * @return An array of Kotlin compatible vararg arguments.
+     */
+    private fun Varargs.toKotlinVarargArgs(param: KParameter): Array<Any?> {
+        val typeName = param.type.toString()
+
+        return when {
+            typeName.contains("kotlin.DoubleArray") -> {
+                val array = DoubleArray(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Double::class.createType()) as Double
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.IntArray") -> {
+                val array = IntArray(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Int::class.createType()) as Int
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.FloatArray") -> {
+                val array = FloatArray(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Float::class.createType()) as Float
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.LongArray") -> {
+                val array = LongArray(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Long::class.createType()) as Long
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.Array") -> {
+                val array = Array<Any?>(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Any::class.createType())
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.StringArray") -> {
+                val array = Array<String?>(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(String::class.createType()) as String
+                }
+                arrayOf(array)
+            }
+            typeName.contains("kotlin.BooleanArray") -> {
+                val array = BooleanArray(this.narg()) { i ->
+                    this.arg(i + 1).toKotlinValue(Boolean::class.createType()) as Boolean
+                }
+                arrayOf(array)
+            }
+            else -> throw TwineError("Unsupported vararg type: $typeName")
+        }
+    }
+
+
     /**
      * Registers properties annotated with {@code TwineNativeProperty} into the Lua table.
      *
@@ -208,6 +292,29 @@ abstract class TwineNative(
      */
     private fun Varargs.toKotlinArgs(func: KFunction<*>): Array<Any?> {
         val params = func.parameters.drop(1) // Skip `this`
+
+        val firstParam = params.firstOrNull()
+        val isVararg = firstParam?.isVararg == true
+        val fixedParamCount = if (isVararg) params.size - 1 else params.size
+
+        if (narg() < fixedParamCount) {
+            throw TwineError("Not enough arguments for ${func.name}. Expected ${fixedParamCount}, got ${narg()}")
+        }
+
+        if (!isVararg && narg() != fixedParamCount) {
+            throw TwineError("Invalid number of arguments for ${func.name}. Expected ${fixedParamCount}, got ${narg()}")
+        }
+
+        if (isVararg) {
+            val varargParam = params.last()
+            val varargArgs = ArrayList<Any?>()
+            for (i in fixedParamCount until narg()) {
+                val arg = this.arg(i + 1)
+                varargArgs.add(arg.toKotlinValue(varargParam.type))
+            }
+            return arrayOf(varargArgs.toTypedArray())
+        }
+
         return params.mapIndexed { index, param ->
             this.arg(index + 1).let { arg ->
                 if (arg.istable()) {
