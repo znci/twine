@@ -118,7 +118,7 @@ abstract class TwineNative(
                         val argCount = args.narg()
                         val matchingFunction = overloadedFunctions.find { function ->
                             val params = function.parameters.drop(1) // Skip `this`
-                             val isVararg = params.lastOrNull()?.isVararg == true
+                            val isVararg = params.lastOrNull()?.isVararg == true
                             val fixedParamCount = if (isVararg) params.size - 1 else params.size
 
                             if (argCount < fixedParamCount) return@find false
