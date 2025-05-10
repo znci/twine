@@ -254,9 +254,9 @@ abstract class TwineNative(
             val count = narg()
 
             val firstArgArray: Any = when (firstArgType.classifier) {
+                Int::class -> List(count) { this.arg(it + 1).toint() }.toIntArray().toTypedArray()
                 Double::class -> List(count) { this.arg(it + 1).todouble() }.toDoubleArray()
                 Boolean::class -> List(count) { this.arg(it + 1).toboolean() }.toBooleanArray()
-                Int::class -> List(count) { this.arg(it + 1).toint() }.toIntArray()
                 Float::class -> List(count) { this.arg(it + 1).tofloat() }.toFloatArray()
                 Long::class -> List(count) { this.arg(it + 1).tolong() }.toLongArray()
                 String::class -> Array(count) { this.arg(it + 1).tojstring() }
