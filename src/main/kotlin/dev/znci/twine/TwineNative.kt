@@ -126,7 +126,7 @@ abstract class TwineNative(
 
                             for (i in 0 until argCount) {
                                 val paramType = params[i].type
-                                val argType = getKotlinType(args.arg(i + 1), function)
+                                val argType = args.arg(i + 1).toKotlinType(function)
 
                                 if (!paramType.isSupertypeOf(argType)) {
                                     return@find false
@@ -154,8 +154,7 @@ abstract class TwineNative(
                                         ps.size == 1 && ps[0].isVararg
                                     } ?: throw TwineError("No vararg function found")
 
-                                    val varargParam = varargFunction.parameters[1]
-                                    val varargArgs = args.toKotlinVarargArgs(varargParam)
+                                    val varargArgs = args.toKotlinArgs(varargFunction)
 
                                     return try {
                                         val result = varargFunction.call(this@TwineNative, *varargArgs)
@@ -175,62 +174,6 @@ abstract class TwineNative(
                 }
                 table.set(name, overloadedFunction)
             }
-        }
-    }
-
-    /**
-     * Converts Lua varargs to Kotlin vararg arguments based on the parameter type.
-     *
-     * @param param The parameter whose type will be used for conversion.
-     * @return An array of Kotlin compatible vararg arguments.
-     */
-    private fun Varargs.toKotlinVarargArgs(param: KParameter): Array<Any?> {
-        val typeName = param.type.toString()
-
-        return when {
-            typeName.contains("kotlin.DoubleArray") -> {
-                val array = DoubleArray(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Double::class.createType()) as Double
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.IntArray") -> {
-                val array = IntArray(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Int::class.createType()) as Int
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.FloatArray") -> {
-                val array = FloatArray(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Float::class.createType()) as Float
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.LongArray") -> {
-                val array = LongArray(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Long::class.createType()) as Long
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.Array") -> {
-                val array = Array<Any?>(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Any::class.createType())
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.StringArray") -> {
-                val array = Array<String?>(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(String::class.createType()) as String
-                }
-                arrayOf(array)
-            }
-            typeName.contains("kotlin.BooleanArray") -> {
-                val array = BooleanArray(this.narg()) { i ->
-                    this.arg(i + 1).toKotlinValue(Boolean::class.createType()) as Boolean
-                }
-                arrayOf(array)
-            }
-            else -> throw TwineError("Unsupported vararg type: $typeName")
         }
     }
 
@@ -305,6 +248,26 @@ abstract class TwineNative(
             throw TwineError("Invalid number of arguments for ${func.name}. Expected ${fixedParamCount}, got ${narg()}")
         }
 
+        if (firstParam?.isVararg == true) {
+            val firstArg = this.arg(1)
+            val firstArgType = firstArg.toKotlinType(func)
+            val count = narg() - 1
+
+            val firstArgArray: Any = when (firstArgType.classifier) {
+                Double::class -> List(count) { this.arg(it + 2).todouble() }.toDoubleArray()
+                Boolean::class -> List(count) { this.arg(it + 2).toboolean() }.toBooleanArray()
+                Int::class -> List(count) { this.arg(it + 2).toint() }.toIntArray()
+                Float::class -> List(count) { this.arg(it + 2).tofloat() }.toFloatArray()
+                Long::class -> List(count) { this.arg(it + 2).tolong() }.toLongArray()
+                String::class -> Array(count) { this.arg(it + 2).tojstring() }
+                LuaValue::class -> Array(count) { this.arg(it + 2) }
+
+                else -> throw TwineError("Unsupported vararg type: $firstArgType")
+            }
+
+            return arrayOf(firstArgArray)
+        }
+
         if (isVararg) {
             val varargParam = params.last()
             val varargArgs = ArrayList<Any?>()
@@ -326,22 +289,25 @@ abstract class TwineNative(
         }.toTypedArray()
     }
 
+
     /**
      * Converts a Lua value to the corresponding Kotlin type.
      */
-    private fun getKotlinType(luaValue: LuaValue, func: KFunction<*>): KType {
+    private fun LuaValue.toKotlinType(func: KFunction<*>): KType {
         return when {
-            luaValue.isboolean() -> Boolean::class.createType()
-            luaValue.isnumber() -> Double::class.createType()
-            luaValue.isint() -> Int::class.createType()
-            luaValue.isstring() -> String::class.createType()
-            luaValue.isfunction() -> Function::class.createType()
-            luaValue.istable() -> {
+            isboolean() -> Boolean::class.createType()
+            isnumber() -> Double::class.createType()
+            isint() -> Int::class.createType()
+            isstring() -> String::class.createType()
+            isfunction() -> Function::class.createType()
+            istable() -> {
                 try {
-                    val instance = luaValue.checktable().toClass(func)
-                    instance::class.createType()
-                } catch (e: Exception) {
-                    LuaTable::class.createType()
+                    val table = checktable()
+                    val className = table.get("__javaClass").tojstring()
+                    val clazz = Class.forName(className).kotlin
+                    clazz.createType()
+                } catch (e: ClassNotFoundException) {
+                    throw TwineError("Could not find class for Lua table: ${e.message}")
                 }
             }
             else -> luaValue::class.createType()
@@ -355,40 +321,48 @@ abstract class TwineNative(
      * @return The converted value in Kotlin.
      */
     private fun LuaValue.toKotlinValue(type: KType?): Any? {
+        if (isnil()) return null
+        val classifier = type?.classifier as? KClass<*>
+
+        val converters: Map<KClass<*>, () -> Any?> = mapOf(
+            String::class to { if (isnil()) null else tojstring() },
+            Boolean::class to { toboolean() },
+            Int::class to { toint() },
+            Double::class to { todouble() },
+            Float::class to { tofloat() },
+            Long::class to { tolong() }
+        )
+
         return when {
-            isfunction() -> {
-                val func = checkfunction()
-
-                // TODO: make this nicer
-                return when (type?.classifier) {
-                    Function0::class -> {
-                        func.call()
-                    }
-                    Function1::class -> { arg1: Any? ->
-                        func.call(arg1.toLuaValue())
-                    }
-                    Function2::class -> { arg1: Any?, arg2: Any? ->
-                        func.call(arg1.toLuaValue(), arg2.toLuaValue())
-                    }
-                    Function3::class -> { arg1: Any?, arg2: Any?, arg3: Any? ->
-                        func.call(arg1.toLuaValue(), arg2.toLuaValue(), arg3.toLuaValue())
-                    }
-
-                    else -> func
+            isfunction() -> when(classifier) {
+                Function0::class -> {
+                    val func = checkfunction()
+                    func.call()
                 }
+                Function1::class -> { arg1: Any? ->
+                    val func = checkfunction()
+                    func.call(arg1.toLuaValue())
+                }
+                Function2::class -> { arg1: Any?, arg2: Any? ->
+                    val func = checkfunction()
+                    func.call(arg1.toLuaValue(), arg2.toLuaValue())
+                }
+                Function3::class -> { arg1: Any?, arg2: Any?, arg3: Any? ->
+                    val func = checkfunction()
+                    func.call(arg1.toLuaValue(), arg2.toLuaValue(), arg3.toLuaValue())
+                }
+                else -> this
             }
-            type?.classifier == String::class -> if (isnil()) null else tojstring()
-            type?.classifier == Boolean::class -> toboolean()
-            type?.classifier == Int::class -> toint()
-            type?.classifier == Double::class -> todouble()
-            type?.classifier == Float::class -> tofloat()
-            type?.classifier == Long::class -> tolong()
+            classifier in converters -> converters[classifier]?.invoke()
             else -> this
         }
     }
 
     /**
      * Converts a Kotlin value to a LuaValue.
+     * This function is mostly used for figuring out the return type of a function.
+     * Such as a TwineNativeFunction that returns a TwineTable,
+     * which would be converted to a lua-compatible LuaTable.
      *
      * @return The corresponding LuaValue.
      */
@@ -399,7 +373,6 @@ abstract class TwineNative(
             is Double -> LuaValue.valueOf(this.toDouble())
             is Int -> LuaValue.valueOf(this)
             is Float -> LuaValue.valueOf(this.toDouble())
-            is Long -> LuaValue.valueOf(this.toDouble())
             is TwineTable -> {
                 val table = this.table
                 set("__javaClass", TableSetOptions(getter = { LuaValue.valueOf(javaClass.name) }))
@@ -427,14 +400,9 @@ abstract class TwineNative(
                 val enumTable = TwineEnum(enumClass as Enum<*>)
                 enumTable.toLuaTable()
             }
-            is Unit -> {
-                NIL
-            }
-            null -> {
-                NIL
-            }
+            null, Unit -> NIL
             else -> {
-                throw TwineError("Unsupported type: ${this.javaClass.simpleName ?: "null"}")
+                throw TwineError("Unsupported toLuaValue type: ${this.javaClass.simpleName ?: "null"}")
             }
         }
     }
