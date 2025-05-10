@@ -236,8 +236,8 @@ abstract class TwineNative(
     private fun Varargs.toKotlinArgs(func: KFunction<*>): Array<Any?> {
         val params = func.parameters.drop(1) // Skip `this`
 
-        val firstParam = params.firstOrNull()
-        val isVararg = firstParam?.isVararg == true
+        val lastParam = params.lastOrNull()
+        val isVararg = lastParam?.isVararg == true
         val fixedParamCount = if (isVararg) params.size - 1 else params.size
 
         if (narg() < fixedParamCount) {
@@ -248,19 +248,19 @@ abstract class TwineNative(
             throw TwineError("Invalid number of arguments for ${func.name}. Expected ${fixedParamCount}, got ${narg()}")
         }
 
-        if (firstParam?.isVararg == true) {
+        if (lastParam?.isVararg == true) {
             val firstArg = this.arg(1)
             val firstArgType = firstArg.toKotlinType(func)
-            val count = narg() - 1
+            val count = narg()
 
             val firstArgArray: Any = when (firstArgType.classifier) {
-                Double::class -> List(count) { this.arg(it + 2).todouble() }.toDoubleArray()
-                Boolean::class -> List(count) { this.arg(it + 2).toboolean() }.toBooleanArray()
-                Int::class -> List(count) { this.arg(it + 2).toint() }.toIntArray()
-                Float::class -> List(count) { this.arg(it + 2).tofloat() }.toFloatArray()
-                Long::class -> List(count) { this.arg(it + 2).tolong() }.toLongArray()
-                String::class -> Array(count) { this.arg(it + 2).tojstring() }
-                LuaValue::class -> Array(count) { this.arg(it + 2) }
+                Double::class -> List(count) { this.arg(it + 1).todouble() }.toDoubleArray()
+                Boolean::class -> List(count) { this.arg(it + 1).toboolean() }.toBooleanArray()
+                Int::class -> List(count) { this.arg(it + 1).toint() }.toIntArray()
+                Float::class -> List(count) { this.arg(it + 1).tofloat() }.toFloatArray()
+                Long::class -> List(count) { this.arg(it + 1).tolong() }.toLongArray()
+                String::class -> Array(count) { this.arg(it + 1).tojstring() }
+                LuaValue::class -> Array(count) { this.arg(it + 1) }
 
                 else -> throw TwineError("Unsupported vararg type: $firstArgType")
             }
