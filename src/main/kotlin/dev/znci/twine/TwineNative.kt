@@ -137,7 +137,6 @@ abstract class TwineNative(
 
                         if (matchingFunction != null) {
                             val kotlinArgs = args.toKotlinArgs(matchingFunction)
-                            println("KOTLIN ARGS: $kotlinArgs")
                             return try {
                                 val result = matchingFunction.call(this@TwineNative, *kotlinArgs)
                                 result.toLuaValue()
