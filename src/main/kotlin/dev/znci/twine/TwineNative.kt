@@ -45,7 +45,7 @@ import kotlin.reflect.full.primaryConstructor
 @Suppress("unused")
 abstract class TwineNative(
     /** The name of the Lua table/property for this object. */
-    override var valueName: String
+    override var valueName: String = ""
 ) : TwineTable(valueName) {
 
     /**

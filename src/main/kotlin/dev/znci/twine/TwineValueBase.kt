@@ -24,5 +24,5 @@ package dev.znci.twine
  * @param valueName The name of the value, used for specifying the name of the value if it becomes a global.
  */
 open class TwineValueBase(
-    open var valueName: String
+    open var valueName: String = ""
 ): TwineLuaValue()

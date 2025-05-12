@@ -23,7 +23,7 @@ package dev.znci.twine
  * @param valueName The name of the property.
  */
 open class TwineProperty(
-    override var valueName: String,
+    override var valueName: String = "",
 ) : TwineValueBase(valueName) {
     /**
      * The value of the property.
