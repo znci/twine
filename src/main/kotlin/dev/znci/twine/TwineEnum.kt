@@ -2,10 +2,14 @@ package dev.znci.twine
 
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
+import kotlin.reflect.KClass
 
-class TwineEnum(private val enum: Enum<*>) : TwineTable(enum.javaClass.simpleName) {
+open class TwineEnum(private val enum: KClass<*>) : TwineTable(enum.java.simpleName) {
 
     init {
+        if (!enum.java.isEnum) {
+            throw TwineError("TwineEnum can only be used with enum classes")
+        }
         val table = this.table
         table.setmetatable(LuaTable())
         table.set("__index", object : LuaValue() {
@@ -26,7 +30,8 @@ class TwineEnum(private val enum: Enum<*>) : TwineTable(enum.javaClass.simpleNam
 
     fun toLuaTable(): LuaTable {
         val table = this.table
-        for (enumConstant in enum.javaClass.enumConstants) {
+        @Suppress("UNCHECKED_CAST")
+        for (enumConstant in enum.java.enumConstants as Array<Enum<*>>) {
             // FIXME: figure out why we can't use TwineLuaValue.
             table.set(enumConstant.name, LuaValue.valueOf(enumConstant.ordinal))
         }
@@ -34,9 +39,10 @@ class TwineEnum(private val enum: Enum<*>) : TwineTable(enum.javaClass.simpleNam
     }
 
     fun fromLuaTable(luaTable: LuaTable): Enum<*> {
-        val enumConstants = enum.javaClass.enumConstants
+        val enumConstants = enum.java.enumConstants
         for (i in 0 until luaTable.length()) {
             val name = luaTable[i + 1].toString()
+            @Suppress("UNCHECKED_CAST")
             for (enumConstant in enumConstants as Array<Enum<*>>) {
                 if (enumConstant.name == name) {
                     return enumConstant

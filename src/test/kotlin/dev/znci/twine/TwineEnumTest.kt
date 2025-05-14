@@ -24,8 +24,8 @@ class TwineEnumTest {
     @Test
     fun `toLuaTable should convert an enum with multiple constants to a LuaTable`() {
         // Arrange
-        val enum = SampleEnum.entries[0]
-        val twineEnum = TwineEnum(enum)
+//        val enum = SampleEnum.entries[0]
+        val twineEnum = TwineEnum(SampleEnum::class)
 
         // Act
         val luaTable = twineEnum.toLuaTable()
@@ -40,8 +40,7 @@ class TwineEnumTest {
     @Test
     fun `fromLuaTable should convert a LuaTable with multiple constants back to the corresponding enum value`() {
         // Arrange
-        val enum = SampleEnum.FIRST
-        val twineEnum = TwineEnum(enum)
+        val twineEnum = TwineEnum(SampleEnum::class)
         val luaTable = LuaTable()
         luaTable.set(1, LuaValue.valueOf("SECOND"))
 
@@ -55,8 +54,7 @@ class TwineEnumTest {
     @Test
     fun `fromLuaTable should properly handle a LuaTable with a single constant`() {
         // Arrange
-        val enum = SingleValueEnum.FIRST
-        val twineEnum = TwineEnum(enum)
+        val twineEnum = TwineEnum(SingleValueEnum::class)
         val luaTable = LuaTable()
         luaTable.set(1, LuaValue.valueOf("FIRST"))
 
@@ -70,8 +68,7 @@ class TwineEnumTest {
     @Test
     fun `fromLuaTable should throw TwineError if the LuaTable contains an invalid enum constant`() {
         // Arrange
-        val enum = SampleEnum.FIRST
-        val twineEnum = TwineEnum(enum)
+        val twineEnum = TwineEnum(SampleEnum::class)
         val luaTable = LuaTable()
         luaTable.set(1, LuaValue.valueOf("INVALID_CONSTANT"))
 
@@ -85,8 +82,7 @@ class TwineEnumTest {
     @Test
     fun `toLuaTable should handle an enum with a single constant correctly`() {
         // Arrange
-        val enum = SingleValueEnum.FIRST
-        val twineEnum = TwineEnum(enum)
+        val twineEnum = TwineEnum(SingleValueEnum::class)
 
         // Act
         val luaTable = twineEnum.toLuaTable()
@@ -99,14 +95,13 @@ class TwineEnumTest {
     @Test
     fun `toLuaTable should handle an empty enum correctly`() {
         // Arrange
-        val enum = EmptyEnum.entries.firstOrNull() ?: return
-        val twineEnum = TwineEnum(enum)
+        val twineEnum = TwineEnum(EmptyEnum::class)
 
         // Act
         val luaTable = twineEnum.toLuaTable()
 
         // Assert
-        assertEquals(0, luaTable.keys().size)
+        assertEquals(1, luaTable.keys().size) // including the __javaClass key
     }
 
     private enum class SingleValueEnum {
