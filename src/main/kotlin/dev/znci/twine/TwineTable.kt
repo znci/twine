@@ -42,7 +42,7 @@ data class TableSetOptions(
  * @param valueName The name of the table, used for specifying the name of the table if it becomes a global.
  */
 open class TwineTable(
-    override var valueName: String
+    override var valueName: String = ""
 ): TwineValueBase(valueName) {
     /**
      * The internal `LuaTable` instance that holds the table's data.
