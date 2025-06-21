@@ -6,6 +6,10 @@ import dev.znci.twine.TwineError
 import dev.znci.twine.TwineLuaValue
 import dev.znci.twine.TwineTable
 import dev.znci.twine.nativex.conversion.ClassMapper.toClass
+import org.luaj.vm2.LuaBoolean
+import org.luaj.vm2.LuaInteger
+import org.luaj.vm2.LuaNil
+import org.luaj.vm2.LuaString
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
@@ -13,6 +17,7 @@ import kotlin.collections.get
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KType
+import kotlin.reflect.KTypeProjection
 import kotlin.reflect.full.createType
 
 object Converter {
@@ -97,29 +102,50 @@ object Converter {
             Long::class to { tolong() }
         )
 
-        return when {
-            isfunction() -> when(classifier) {
+        if (isfunction()) {
+            val luaFunc = this.checkfunction()
+            return when (classifier) {
                 Function0::class -> {
-                    val func = checkfunction()
-                    func.call()
+                    val fn: Function0<Any?> = {
+                        val result = luaFunc.call()
+                        result.toKotlinValue(null)
+                    }
+                    fn
                 }
-                Function1::class -> { arg1: Any? ->
-                    val func = checkfunction()
-                    func.call(arg1.toLuaValue())
+
+                Function1::class -> {
+                    val fn: Function1<Any?, Any?> = { arg1 ->
+                        val result = luaFunc.call(arg1.toLuaValue())
+                        result.toKotlinValue(null)
+                    }
+                    fn
                 }
-                Function2::class -> { arg1: Any?, arg2: Any? ->
-                    val func = checkfunction()
-                    func.call(arg1.toLuaValue(), arg2.toLuaValue())
+
+                Function2::class -> {
+                    val fn: Function2<Any?, Any?, Any?> = { arg1, arg2 ->
+                        val result = luaFunc.call(arg1.toLuaValue(), arg2.toLuaValue())
+                        result.toKotlinValue(null)
+                    }
+                    fn
                 }
-                Function3::class -> { arg1: Any?, arg2: Any?, arg3: Any? ->
-                    val func = checkfunction()
-                    func.call(arg1.toLuaValue(), arg2.toLuaValue(), arg3.toLuaValue())
+
+                Function3::class -> {
+                    val fn: Function3<Any?, Any?, Any?, Any?> = { arg1, arg2, arg3 ->
+                        val result = luaFunc.call(arg1.toLuaValue(), arg2.toLuaValue(), arg3.toLuaValue())
+                        result.toKotlinValue(null)
+                    }
+                    fn
                 }
-                else -> this
+
+                else -> {
+                    throw TwineError("Unsupported function type: $classifier")
+                }
             }
-            classifier in converters -> converters[classifier]?.invoke()
-            else -> this
         }
+
+        converters[classifier]?.let { return it() }
+
+        return this
     }
 
     /**
@@ -136,7 +162,11 @@ object Converter {
             is Boolean -> LuaValue.valueOf(this)
             is Double -> LuaValue.valueOf(this.toDouble())
             is Int -> LuaValue.valueOf(this)
+            is Long -> LuaValue.valueOf(this.toInt())
             is Float -> LuaValue.valueOf(this.toDouble())
+            is LuaString -> LuaValue.valueOf(this.toString())
+            is LuaInteger -> LuaValue.valueOf(this.toint())
+            is LuaBoolean -> LuaValue.valueOf(this.toboolean())
             is TwineTable -> {
                 val table = this.table
                 set("__javaClass", TableSetOptions(getter = { LuaValue.valueOf(javaClass.name) }))
@@ -146,6 +176,13 @@ object Converter {
                 throw TwineError("TwineLuaValue should not be used as a return type.")
             }
             is Array<*> -> {
+                val table = LuaTable()
+                this.forEachIndexed { index, value ->
+                    table.set(index + 1, value.toLuaValue())
+                }
+                table
+            }
+            is Set<*> -> {
                 val table = LuaTable()
                 this.forEachIndexed { index, value ->
                     table.set(index + 1, value.toLuaValue())
@@ -164,7 +201,7 @@ object Converter {
                 val enumTable = TwineEnum(enumClass)
                 enumTable.toLuaTable()
             }
-            null, Unit -> TwineLuaValue.Companion.NIL
+            null, Unit -> TwineLuaValue.NIL
             else -> {
                 throw TwineError("Unsupported toLuaValue type: ${this.javaClass.simpleName ?: "null"}")
             }
@@ -180,7 +217,9 @@ object Converter {
             isnumber() -> Double::class.createType()
             isint() -> Int::class.createType()
             isstring() -> String::class.createType()
-            isfunction() -> Function::class.createType()
+            isfunction() -> {
+                Function::class.createType(listOf(KTypeProjection.STAR))
+            }
             istable() -> {
                 try {
                     val table = checktable()

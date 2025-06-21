@@ -2,6 +2,7 @@ package dev.znci.twine.nativex
 
 import dev.znci.twine.TwineError
 import dev.znci.twine.annotations.TwineNativeFunction
+import dev.znci.twine.annotations.TwineOverload
 import dev.znci.twine.nativex.conversion.Converter.toKotlinArgs
 import dev.znci.twine.nativex.conversion.Converter.toKotlinType
 import dev.znci.twine.nativex.conversion.Converter.toLuaValue
@@ -57,7 +58,9 @@ class FunctionRegistrar(private val owner: TwineNative) {
         val functionMap = mutableMapOf<String, MutableList<KFunction<*>>>()
 
         functions.forEach { function ->
-            if (function.findAnnotation<TwineNativeFunction>() == null)
+            val nativeAnnotation = function.findAnnotation<TwineNativeFunction>()
+            val overloadAnnotation = function.findAnnotation<TwineOverload>()
+            if (nativeAnnotation == null || overloadAnnotation == null)
                 return@forEach
 
             // Set the name of the method based on the string given to the annotation
@@ -99,7 +102,7 @@ class FunctionRegistrar(private val owner: TwineNative) {
                     if (matchingFunction != null) {
                         val kotlinArgs = args.toKotlinArgs(matchingFunction)
                         return try {
-                            val result = matchingFunction.call(this, *kotlinArgs)
+                            val result = matchingFunction.call(owner, *kotlinArgs)
                             result.toLuaValue()
                         } catch (e: InvocationTargetException) {
                             ErrorHandler.throwError(e, matchingFunction)
@@ -117,7 +120,7 @@ class FunctionRegistrar(private val owner: TwineNative) {
                                 val varargArgs = args.toKotlinArgs(varargFunction)
 
                                 return try {
-                                    val result = varargFunction.call(this, *varargArgs)
+                                    val result = varargFunction.call(owner, *varargArgs)
                                     result.toLuaValue()
                                 } catch (e: Exception) {
                                     e.printStackTrace()

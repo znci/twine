@@ -47,7 +47,7 @@ open class TwineTable(
     /**
      * The internal `LuaTable` instance that holds the table's data.
      */
-    val table: LuaTable = LuaTable()
+    var table: LuaTable = LuaTable()
 
 
     /**

@@ -1,11 +1,13 @@
 package dev.znci.twine
 
+import dev.znci.twine.annotations.TwineNativeFunction
+import dev.znci.twine.annotations.TwineNativeProperty
+import dev.znci.twine.nativex.TwineNative
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
 import kotlin.reflect.KClass
 
 open class TwineEnum(private val enum: KClass<*>) : TwineTable(enum.java.simpleName) {
-
     init {
         if (!enum.java.isEnum) {
             throw TwineError("TwineEnum can only be used with enum classes")
@@ -32,18 +34,20 @@ open class TwineEnum(private val enum: KClass<*>) : TwineTable(enum.java.simpleN
         val table = this.table
         @Suppress("UNCHECKED_CAST")
         for (enumConstant in enum.java.enumConstants as Array<Enum<*>>) {
-            // FIXME: figure out why we can't use TwineLuaValue.
-            table.set(enumConstant.name, LuaValue.valueOf(enumConstant.ordinal))
+            table.set(enumConstant.name, TwineEnumValue(
+                enumConstant.declaringJavaClass.simpleName,
+                enumConstant.name,
+                enumConstant.ordinal,
+                TwineEnumValue::class.java.name
+            ).table)
         }
         return table
     }
 
     fun fromLuaTable(luaTable: LuaTable): Enum<*> {
-        val enumConstants = enum.java.enumConstants
         for (i in 0 until luaTable.length()) {
             val name = luaTable[i + 1].toString()
-            @Suppress("UNCHECKED_CAST")
-            for (enumConstant in enumConstants as Array<Enum<*>>) {
+            for (enumConstant in getConstants()) {
                 if (enumConstant.name == name) {
                     return enumConstant
                 }
@@ -51,4 +55,54 @@ open class TwineEnum(private val enum: KClass<*>) : TwineTable(enum.java.simpleN
         }
         throw TwineError("Enum constant not found")
     }
+
+    fun getEnumValue(ordinal: Int): Any? {
+        val constants = enum.java.enumConstants?.toList() ?: throw TwineError("getEnumValue was called without an enum class")
+        val constant = constants.getOrNull(ordinal) ?: throw TwineError("getEnumValue was called without a valid ordinal")
+
+        return try {
+            val field = constant.javaClass.getDeclaredField("bukkitValue")
+            field.isAccessible = true
+            field.get(constant)
+        } catch (e: Exception) {
+            constant
+        }
+    }
+
+    fun getConstants(): Array<Enum<*>> {
+        @Suppress("UNCHECKED_CAST")
+        return enum.java.enumConstants as Array<Enum<*>>
+    }
+
+    fun isValidValue(value: TwineEnumValue): Boolean {
+        if (enum.simpleName != value.parent) return false
+
+        val constants = getConstants()
+        if (value.ordinal < 0 || value.ordinal > constants.size) return false
+
+        return constants[value.ordinal].name == value.name
+    }
+}
+
+open class TwineEnumValue(
+    private val parentName: String,
+    private val enumName: String,
+    private val enumOrdinal: Int,
+    private val __javaClass: String
+) : TwineNative() {
+    @TwineNativeProperty("__javaClass")
+    val javaClass: String
+        get() = __javaClass
+
+    @TwineNativeProperty("parentName")
+    val parent: String
+        get() = parentName
+
+    @TwineNativeProperty("enumName")
+    val name: String
+        get() = enumName
+
+    @TwineNativeProperty("enumOrdinal")
+    val ordinal: Int
+        get() = enumOrdinal
 }

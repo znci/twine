@@ -17,7 +17,7 @@ class PropertyRegistrar(private val owner: TwineNative) {
      * Registers properties annotated with {@code TwineNativeProperty} into the Lua table.
      */
     fun registerProperties() {
-        val properties = this::class.memberProperties
+        val properties = owner::class.memberProperties
             .mapNotNull { prop ->
                 prop.findAnnotation<TwineNativeProperty>()?.let { annotation ->
                     val customName = annotation.name.takeIf { it != TwineNative.INHERIT_TAG } ?: prop.name
@@ -34,7 +34,7 @@ class PropertyRegistrar(private val owner: TwineNative) {
                     ?: return error("No property '${key.tojstring()}'")
 
                 return try {
-                    val value = prop.getter.call(this)
+                    val value = prop.getter.call(owner)
                     value.toLuaValue()
                 } catch (e: Exception) {
                     error("Error getting '${prop.name}': ${e.message}")
@@ -49,7 +49,7 @@ class PropertyRegistrar(private val owner: TwineNative) {
                     ?: return error("No property '${key.tojstring()}'")
 
                 return try {
-                    prop.setter.call(this, value.toKotlinValue(prop.returnType))
+                    prop.setter.call(owner, value.toKotlinValue(prop.returnType))
                     TRUE
                 } catch (e: Exception) {
                     error("Error setting '${prop.name}': ${e.message}")
