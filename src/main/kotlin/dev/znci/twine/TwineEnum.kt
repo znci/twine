@@ -34,7 +34,6 @@ open class TwineEnum(private val enum: KClass<*>) : TwineTable(enum.java.simpleN
         val table = this.table
         @Suppress("UNCHECKED_CAST")
         for (enumConstant in enum.java.enumConstants as Array<Enum<*>>) {
-            println("ENUM NAME ${enumConstant.name}")
             table.set(enumConstant.name, TwineEnumValue(
                 enumConstant.declaringJavaClass.name,
                 enumConstant.name,

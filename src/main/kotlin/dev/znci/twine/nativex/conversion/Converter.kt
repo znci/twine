@@ -143,8 +143,6 @@ object Converter {
             }
         }
 
-        println("classifier: $classifier")
-        println("is table: ${istable()}")
         if (classifier == TwineEnumValue::class && istable()) {
             val table = checktable()
             val ordinal = table.get("enumOrdinal").toint()
@@ -157,7 +155,6 @@ object Converter {
 
         converters[classifier]?.let { return it() }
 
-        println("reutnirning this")
         return this
     }
 

@@ -53,8 +53,6 @@ class PropertyRegistrar(private val owner: TwineNative) {
                     val setterParamType = prop.setter.parameters[1].type
                     val convertedValue = value.toKotlinValue(setterParamType)
 
-                    println("SETTER: ${prop.name} = $convertedValue (type: ${setterParamType.classifier})")
-
                     prop.setter.call(owner, convertedValue)
                     TRUE
                 } catch (e: Exception) {
