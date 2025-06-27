@@ -2,13 +2,13 @@ package dev.znci.twine.nativex.conversion
 
 import dev.znci.twine.TableSetOptions
 import dev.znci.twine.TwineEnum
+import dev.znci.twine.TwineEnumValue
 import dev.znci.twine.TwineError
 import dev.znci.twine.TwineLuaValue
 import dev.znci.twine.TwineTable
 import dev.znci.twine.nativex.conversion.ClassMapper.toClass
 import org.luaj.vm2.LuaBoolean
 import org.luaj.vm2.LuaInteger
-import org.luaj.vm2.LuaNil
 import org.luaj.vm2.LuaString
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
@@ -143,8 +143,21 @@ object Converter {
             }
         }
 
+        println("classifier: $classifier")
+        println("is table: ${istable()}")
+        if (classifier == TwineEnumValue::class && istable()) {
+            val table = checktable()
+            val ordinal = table.get("enumOrdinal").toint()
+            val name = table.get("enumName").tojstring()
+            val parent = table.get("parentName").tojstring()
+            val clazz = table.get("__javaClass").tojstring()
+
+            return TwineEnumValue(parent, name, ordinal, clazz)
+        }
+
         converters[classifier]?.let { return it() }
 
+        println("reutnirning this")
         return this
     }
 

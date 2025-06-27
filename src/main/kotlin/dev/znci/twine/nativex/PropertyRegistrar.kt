@@ -37,6 +37,7 @@ class PropertyRegistrar(private val owner: TwineNative) {
                     val value = prop.getter.call(owner)
                     value.toLuaValue()
                 } catch (e: Exception) {
+                    e.printStackTrace()
                     error("Error getting '${prop.name}': ${e.message}")
                 }
             }
@@ -49,7 +50,12 @@ class PropertyRegistrar(private val owner: TwineNative) {
                     ?: return error("No property '${key.tojstring()}'")
 
                 return try {
-                    prop.setter.call(owner, value.toKotlinValue(prop.returnType))
+                    val setterParamType = prop.setter.parameters[1].type
+                    val convertedValue = value.toKotlinValue(setterParamType)
+
+                    println("SETTER: ${prop.name} = $convertedValue (type: ${setterParamType.classifier})")
+
+                    prop.setter.call(owner, convertedValue)
                     TRUE
                 } catch (e: Exception) {
                     error("Error setting '${prop.name}': ${e.message}")
