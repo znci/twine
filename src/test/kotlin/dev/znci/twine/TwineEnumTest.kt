@@ -32,9 +32,9 @@ class TwineEnumTest {
 
         // Assert
         assertEquals(4, luaTable.keys().size) // 4, including the __javaClass key
-        assertEquals(LuaValue.valueOf(0), luaTable.get("FIRST"))
-        assertEquals(LuaValue.valueOf(1), luaTable.get("SECOND"))
-        assertEquals(LuaValue.valueOf(2), luaTable.get("THIRD"))
+        assertEquals(LuaValue.valueOf(0), luaTable.get("FIRST").get("enumOrdinal"))
+        assertEquals(LuaValue.valueOf(1), luaTable.get("SECOND").get("enumOrdinal"))
+        assertEquals(LuaValue.valueOf(2), luaTable.get("THIRD").get("enumOrdinal"))
     }
 
     @Test
@@ -89,7 +89,7 @@ class TwineEnumTest {
 
         // Assert
         assertEquals(2, luaTable.keys().size) // 2, including the __javaClass key
-        assertEquals(LuaValue.valueOf(0), luaTable.get("FIRST"))
+        assertEquals(LuaValue.valueOf(0), luaTable.get("FIRST").get("enumOrdinal"))
     }
 
     @Test
