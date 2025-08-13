@@ -5,6 +5,7 @@ import dev.znci.twine.nativex.conversion.Converter.toKotlinValue
 import dev.znci.twine.nativex.conversion.Converter.toLuaValue
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
+import org.luaj.vm2.lib.OneArgFunction
 import org.luaj.vm2.lib.ThreeArgFunction
 import org.luaj.vm2.lib.TwoArgFunction
 import kotlin.reflect.KMutableProperty
@@ -58,6 +59,28 @@ class PropertyRegistrar(private val owner: TwineNative) {
                 } catch (e: Exception) {
                     error("Error setting '${prop.name}': ${e.message}")
                 }
+            }
+        })
+
+        // Table-style initializer
+        // test("") {
+        //   property = ""
+        // }
+        metatable.set("__call", object : OneArgFunction() {
+            override fun call(initTable: LuaValue): LuaValue {
+                if (!initTable.istable()) return error("Expected a table for initialization")
+
+                val table = initTable.checktable()
+                val keys = table.keys()
+
+                for (i in 0 until keys.size) {
+                    val key = keys[i]
+                    val value = initTable.get(key)
+
+                    owner.table.set(key, value)
+                }
+
+                return owner.table
             }
         })
 
